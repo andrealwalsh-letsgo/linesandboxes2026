@@ -149,6 +149,40 @@ button.secondary:hover { background: #16213e; }
 .score-chip.active {
   outline: 3px solid white;
 }
+.score-chip.kicked {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+.kick-btn {
+  background: none;
+  border: none;
+  color: #e74c3c;
+  cursor: pointer;
+  font-size: 1.1em;
+  padding: 0 4px;
+  margin: 0;
+  width: auto;
+  min-width: auto;
+}
+.kick-btn:hover { color: #ff6b6b; }
+.player-list li.kicked-player {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+.kicked-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.9);
+  z-index: 200;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  text-align: center;
+}
+.kicked-overlay.active { display: flex; }
+.kicked-overlay p { font-size: 1.2em; margin: 20px 0; }
 
 .board-container {
   overflow: auto;
@@ -291,6 +325,12 @@ canvas {
   <h1>Game Over!</h1>
   <div class="final-scores" id="finalScores"></div>
   <button onclick="location.reload()" style="max-width:200px">Play Again</button>
+</div>
+
+<div class="kicked-overlay" id="kickedOverlay">
+  <h1>Removed from Game</h1>
+  <p id="kickedMessage">The host has removed you from the game. Thanks for playing!</p>
+  <button onclick="location.reload()" style="max-width:200px">Back to Home</button>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
@@ -442,6 +482,15 @@ function startGame() {
   socket.emit('startGame');
 }
 
+function kickPlayer(playerIndex) {
+  socket.emit('kickPlayer', { playerIndex }, (res) => {});
+}
+
+socket.on('kicked', ({ message }) => {
+  document.getElementById('kickedMessage').textContent = message;
+  document.getElementById('kickedOverlay').classList.add('active');
+});
+
 // --- Game State ---
 socket.on('gameState', (state) => {
   gameState = state;
@@ -521,15 +570,18 @@ function recheckBoxes() {
 function updateLobby() {
   const list = document.getElementById('lobbyPlayers');
   list.innerHTML = '';
-  gameState.players.forEach(p => {
+  gameState.players.forEach((p, i) => {
+    if (p.kicked) return;
     const li = document.createElement('li');
-    li.innerHTML = `<span class="player-dot" style="background:${p.color}"></span>${p.name}`;
+    const kickHtml = (isHost && i !== 0) ? `<button class="kick-btn" onclick="kickPlayer(${i})" title="Remove player">✕</button>` : '';
+    li.innerHTML = `<span class="player-dot" style="background:${p.color}"></span><span style="flex:1">${p.name}</span>${kickHtml}`;
     list.appendChild(li);
   });
   const btn = document.getElementById('startBtn');
+  const activePlayers = gameState.players.filter(p => !p.kicked).length;
   if (isHost) {
-    btn.disabled = gameState.players.length < 2;
-    btn.textContent = gameState.players.length < 2 ? 'Waiting for players...' : 'Start Game!';
+    btn.disabled = activePlayers < 2;
+    btn.textContent = activePlayers < 2 ? 'Waiting for players...' : 'Start Game!';
   } else {
     btn.disabled = true;
     btn.textContent = 'Waiting for host to start...';
@@ -548,10 +600,12 @@ function updateUI() {
   const sb = document.getElementById('scoreboard');
   sb.innerHTML = '';
   gameState.players.forEach((p, i) => {
+    if (p.kicked) return;
     const chip = document.createElement('div');
     chip.className = 'score-chip' + (i === gameState.currentPlayerIndex ? ' active' : '');
     chip.style.background = p.color;
-    chip.innerHTML = `${p.name}: ${p.score}`;
+    const kickHtml = (isHost && i !== 0 && gameState.started) ? `<button class="kick-btn" onclick="kickPlayer(${i})" title="Remove">✕</button>` : '';
+    chip.innerHTML = `${p.name}: ${p.score}${kickHtml}`;
     sb.appendChild(chip);
   });
 

@@ -98,7 +98,7 @@ function getRoomState(room) {
     code: room.code,
     width: room.width,
     height: room.height,
-    players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color, score: p.score })),
+    players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color, score: p.score, kicked: !!p.kicked })),
     hLines: room.hLines,
     vLines: room.vLines,
     boxes: room.boxes,
@@ -114,7 +114,7 @@ function getSparseRoomState(room) {
     code: room.code,
     width: room.width,
     height: room.height,
-    players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color, score: p.score })),
+    players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color, score: p.score, kicked: !!p.kicked })),
     currentPlayerIndex: room.currentPlayerIndex,
     started: room.started,
     finished: room.finished,
@@ -143,6 +143,17 @@ function getSparseRoomState(room) {
 
 function isSparse(room) {
   return room.width * room.height > 400; // Use sparse for grids larger than 20x20
+}
+
+function advanceTurn(room) {
+  const n = room.players.length;
+  let next = (room.currentPlayerIndex + 1) % n;
+  let attempts = 0;
+  while (room.players[next].kicked && attempts < n) {
+    next = (next + 1) % n;
+    attempts++;
+  }
+  room.currentPlayerIndex = next;
 }
 
 function emitState(room) {
@@ -186,10 +197,33 @@ io.on('connection', (socket) => {
     emitState(currentRoom);
   });
 
+  socket.on('kickPlayer', ({ playerIndex }, cb) => {
+    const room = currentRoom;
+    if (!room || currentPlayerIndex !== 0) return; // Only host (index 0) can kick
+    if (playerIndex <= 0 || playerIndex >= room.players.length) return; // Can't kick self or invalid
+
+    const kicked = room.players[playerIndex];
+    kicked.kicked = true;
+
+    // Notify the kicked player
+    io.to(kicked.id).emit('kicked', { message: 'The host has removed you from the game. Thanks for playing!' });
+
+    // If it was the kicked player's turn, advance to next active player
+    if (room.started && room.currentPlayerIndex === playerIndex) {
+      advanceTurn(room);
+    }
+
+    // Update all connected player indices for players after the kicked one
+    // We keep the player in the array (to preserve lines/scores) but mark them kicked
+    emitState(room);
+    if (cb) cb({ ok: true });
+  });
+
   socket.on('placeLine', ({ type, row, col }) => {
     const room = currentRoom;
     if (!room || !room.started || room.finished) return;
     if (room.currentPlayerIndex !== currentPlayerIndex) return;
+    if (room.players[currentPlayerIndex].kicked) return;
 
     // Validate
     row = parseInt(row); col = parseInt(col);
@@ -210,8 +244,8 @@ io.on('connection', (socket) => {
     if (isGameOver(room)) {
       room.finished = true;
     } else if (boxesCompleted === 0) {
-      // Next player's turn
-      room.currentPlayerIndex = (room.currentPlayerIndex + 1) % room.players.length;
+      // Next player's turn (skip kicked players)
+      advanceTurn(room);
     }
     // If boxes were completed, same player goes again
 
@@ -221,7 +255,7 @@ io.on('connection', (socket) => {
       playerIndex: currentPlayerIndex,
       boxesCompleted,
       currentPlayerIndex: room.currentPlayerIndex,
-      players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color, score: p.score })),
+      players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color, score: p.score, kicked: !!p.kicked })),
       finished: room.finished,
     });
   });
