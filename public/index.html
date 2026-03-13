@@ -194,7 +194,7 @@ button.secondary:hover { background: #16213e; }
 
 canvas {
   display: block;
-  touch-action: none;
+  touch-action: manipulation;
 }
 
 /* Game over overlay */
@@ -246,7 +246,7 @@ canvas {
   justify-content: center;
 }
 .size-inputs input {
-  width: 80px;
+  width: 90px;
 }
 .size-inputs span { color: #888; }
 
@@ -280,15 +280,15 @@ canvas {
 <div id="createScreen" class="screen">
   <h2>Grid Size</h2>
   <div class="size-presets">
-    <button onclick="setSize(3,3)" class="active" data-size="3x3">3×3</button>
-    <button onclick="setSize(5,5)" data-size="5x5">5×5</button>
+    <button onclick="setSize(5,5)" class="active" data-size="5x5">5×5</button>
     <button onclick="setSize(7,7)" data-size="7x7">7×7</button>
     <button onclick="setSize(10,10)" data-size="10x10">10×10</button>
+    <button onclick="setSize(200,200)" data-size="200x200">200×200</button>
   </div>
   <div class="size-inputs">
-    <input id="gridW" type="number" min="2" max="1000" value="3">
+    <input id="gridW" type="number" min="2" max="999" value="5">
     <span>×</span>
-    <input id="gridH" type="number" min="2" max="1000" value="3">
+    <input id="gridH" type="number" min="2" max="999" value="5">
     <span>boxes</span>
   </div>
   <button onclick="createRoom()" style="margin-top:15px">Create Room</button>
@@ -630,8 +630,8 @@ function updateLobby() {
   const btn = document.getElementById('startBtn');
   const activePlayers = gameState.players.filter(p => !p.kicked).length;
   if (isHost) {
-    btn.disabled = activePlayers < 2;
-    btn.textContent = activePlayers < 2 ? 'Waiting for players...' : 'Start Game!';
+    btn.disabled = false;
+    btn.textContent = activePlayers < 2 ? 'Start Solo' : 'Start Game!';
   } else {
     btn.disabled = true;
     btn.textContent = 'Waiting for host to start...';
@@ -949,8 +949,17 @@ canvas.addEventListener('click', (e) => {
   }
 });
 
+// Touch handling: distinguish taps (place lines) from drags (scroll board)
+let touchStartPos = null;
+let touchStartTime = 0;
+const TAP_DIST = 15; // max px movement for a tap
+const TAP_TIME = 300; // max ms for a tap
+
 canvas.addEventListener('touchstart', (e) => {
-  e.preventDefault();
+  const touch = e.touches[0];
+  touchStartPos = { x: touch.clientX, y: touch.clientY };
+  touchStartTime = Date.now();
+  // Show hover preview immediately
   if (!gameState || gameState.currentPlayerIndex !== myPlayerIndex) return;
   const pos = getCanvasPos(e);
   const line = findLine(pos.x, pos.y);
@@ -960,10 +969,33 @@ canvas.addEventListener('touchstart', (e) => {
   }
 });
 
+canvas.addEventListener('touchmove', (e) => {
+  if (!touchStartPos) return;
+  const touch = e.touches[0];
+  const dx = touch.clientX - touchStartPos.x;
+  const dy = touch.clientY - touchStartPos.y;
+  if (Math.abs(dx) > TAP_DIST || Math.abs(dy) > TAP_DIST) {
+    // It's a drag — clear hover and let the browser scroll
+    if (hoverLine) { hoverLine = null; drawBoard(); }
+  }
+});
+
 canvas.addEventListener('touchend', (e) => {
-  e.preventDefault();
-  if (hoverLine) {
-    socket.emit('placeLine', hoverLine);
+  if (!touchStartPos) return;
+  const touch = e.changedTouches[0];
+  const dx = touch.clientX - touchStartPos.x;
+  const dy = touch.clientY - touchStartPos.y;
+  const dt = Date.now() - touchStartTime;
+  touchStartPos = null;
+  if (Math.abs(dx) < TAP_DIST && Math.abs(dy) < TAP_DIST && dt < TAP_TIME) {
+    // It's a tap — place the line
+    e.preventDefault(); // prevent ghost click
+    if (hoverLine) {
+      socket.emit('placeLine', hoverLine);
+      hoverLine = null;
+      drawBoard();
+    }
+  } else {
     hoverLine = null;
     drawBoard();
   }

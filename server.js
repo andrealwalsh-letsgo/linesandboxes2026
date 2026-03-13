@@ -209,7 +209,7 @@ io.on('connection', (socket) => {
 
   socket.on('startGame', () => {
     if (!currentRoom || currentPlayerIndex !== 0) return;
-    if (currentRoom.players.length < 2) return;
+    if (currentRoom.players.length < 1) return;
     currentRoom.started = true;
     emitState(currentRoom);
   });
