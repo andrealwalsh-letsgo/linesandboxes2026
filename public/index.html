@@ -521,8 +521,33 @@ function startGame() {
   socket.emit('startGame');
 }
 
+let kickedList = []; // { name, color, time }
+
 function kickPlayer(playerIndex) {
-  socket.emit('kickPlayer', { playerIndex }, (res) => {});
+  const player = gameState.players[playerIndex];
+  if (!player) return;
+  if (!confirm(`Remove ${player.name} from the game?`)) return;
+  socket.emit('kickPlayer', { playerIndex }, (res) => {
+    if (res && res.ok) {
+      kickedList.push({ name: player.name, color: player.color, time: new Date().toLocaleTimeString() });
+      updateKickedList();
+    }
+  });
+}
+
+function updateKickedList() {
+  let el = document.getElementById('kickedListContainer');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'kickedListContainer';
+    el.style.cssText = 'width:100%;margin-top:8px;';
+    document.getElementById('scoreboard').after(el);
+  }
+  if (kickedList.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div style="font-size:0.8em;color:#888;margin-bottom:4px;">Removed players:</div>' +
+    kickedList.map(k =>
+      `<div style="font-size:0.8em;color:#666;padding:2px 0;"><span style="color:${k.color}">■</span> ${k.name} — ${k.time}</div>`
+    ).join('');
 }
 
 socket.on('kicked', ({ message }) => {
