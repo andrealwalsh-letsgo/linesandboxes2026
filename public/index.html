@@ -341,6 +341,22 @@ let myPlayerIndex = -1;
 let gameState = null;
 let roomCode = null;
 let isHost = false;
+let myPlayerId = null;
+
+// Session persistence
+function saveSession() {
+  if (roomCode && myPlayerId) {
+    localStorage.setItem('dab_session', JSON.stringify({ roomCode, playerId: myPlayerId }));
+  }
+}
+function clearSession() {
+  localStorage.removeItem('dab_session');
+}
+function getSavedSession() {
+  try {
+    return JSON.parse(localStorage.getItem('dab_session'));
+  } catch(e) { return null; }
+}
 
 // --- Sparse state tracking for large grids ---
 let sparseHLines = new Map(); // "r,c" -> playerIndex
@@ -423,7 +439,9 @@ function createRoom() {
     if (res.error) { alert(res.error); return; }
     roomCode = res.code;
     myPlayerIndex = res.playerIndex;
+    myPlayerId = res.playerId;
     isHost = true;
+    saveSession();
     document.getElementById('lobbyCode').textContent = roomCode;
     showScreen('lobbyScreen');
   });
@@ -438,7 +456,9 @@ function joinRoom() {
     if (res.error) { document.getElementById('homeError').textContent = res.error; return; }
     roomCode = res.code;
     myPlayerIndex = res.playerIndex;
+    myPlayerId = res.playerId;
     isHost = false;
+    saveSession();
     document.getElementById('lobbyCode').textContent = roomCode;
     showScreen('lobbyScreen');
   });
@@ -456,6 +476,25 @@ function joinRoom() {
     const joinBtn = document.getElementById('joinBtn');
     joinBtn.className = '';
     joinBtn.textContent = 'Join Game';
+  }
+})();
+
+// Auto-rejoin from saved session
+(function() {
+  const session = getSavedSession();
+  if (session) {
+    socket.emit('rejoinRoom', { code: session.roomCode, playerId: session.playerId }, (res) => {
+      if (res.error) {
+        clearSession();
+        return; // Session expired or room gone — show normal home screen
+      }
+      roomCode = res.code;
+      myPlayerIndex = res.playerIndex;
+      myPlayerId = res.playerId;
+      isHost = res.isHost;
+      document.getElementById('lobbyCode').textContent = roomCode;
+      // gameState event will switch to correct screen
+    });
   }
 })();
 
@@ -487,6 +526,7 @@ function kickPlayer(playerIndex) {
 }
 
 socket.on('kicked', ({ message }) => {
+  clearSession();
   document.getElementById('kickedMessage').textContent = message;
   document.getElementById('kickedOverlay').classList.add('active');
 });
@@ -618,6 +658,7 @@ function updateUI() {
 }
 
 function showGameOver() {
+  clearSession();
   const sorted = [...gameState.players].sort((a,b) => b.score - a.score);
   const fs = document.getElementById('finalScores');
   fs.innerHTML = `<div style="font-size:1.5em;margin-bottom:15px">🏆 ${sorted[0].name} wins with ${sorted[0].score} boxes!</div>`;

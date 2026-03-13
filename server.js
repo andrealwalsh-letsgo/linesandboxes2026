@@ -9,6 +9,8 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+const crypto = require('crypto');
+
 // In-memory game rooms
 const rooms = new Map();
 
@@ -45,6 +47,7 @@ function addPlayer(room, name, socketId) {
   if (room.started) return null;
   const player = {
     id: socketId,
+    playerId: crypto.randomBytes(8).toString('hex'),
     name,
     color: playerColors[room.players.length % playerColors.length],
     score: 0,
@@ -172,7 +175,7 @@ io.on('connection', (socket) => {
     currentRoom = room;
     currentPlayerIndex = 0;
     socket.join(room.code);
-    cb({ code: room.code, playerIndex: 0 });
+    cb({ code: room.code, playerIndex: 0, playerId: player.playerId });
     emitState(room);
   });
 
@@ -186,7 +189,21 @@ io.on('connection', (socket) => {
     currentRoom = room;
     currentPlayerIndex = room.players.length - 1;
     socket.join(room.code);
-    cb({ code: room.code, playerIndex: currentPlayerIndex });
+    cb({ code: room.code, playerIndex: currentPlayerIndex, playerId: player.playerId });
+    emitState(room);
+  });
+
+  socket.on('rejoinRoom', ({ code, playerId }, cb) => {
+    const room = rooms.get(code.toUpperCase());
+    if (!room) return cb({ error: 'Room not found' });
+    const idx = room.players.findIndex(p => p.playerId === playerId && !p.kicked);
+    if (idx === -1) return cb({ error: 'Could not rejoin — player not found' });
+    // Swap socket ID
+    room.players[idx].id = socket.id;
+    currentRoom = room;
+    currentPlayerIndex = idx;
+    socket.join(room.code);
+    cb({ code: room.code, playerIndex: idx, playerId, isHost: idx === 0 });
     emitState(room);
   });
 
