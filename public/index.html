@@ -318,6 +318,7 @@ canvas {
   <div class="board-container" id="boardContainer">
     <canvas id="gameCanvas"></canvas>
   </div>
+  <div id="kickedListContainer"></div>
 </div>
 
 <!-- GAME OVER -->
@@ -536,17 +537,11 @@ function kickPlayer(playerIndex) {
 }
 
 function updateKickedList() {
-  let el = document.getElementById('kickedListContainer');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'kickedListContainer';
-    el.style.cssText = 'width:100%;margin-top:8px;';
-    document.getElementById('scoreboard').after(el);
-  }
+  const el = document.getElementById('kickedListContainer');
   if (kickedList.length === 0) { el.innerHTML = ''; return; }
   el.innerHTML = '<div style="font-size:0.8em;color:#888;margin-bottom:4px;">Removed players:</div>' +
     kickedList.map(k =>
-      `<div style="font-size:0.8em;color:#666;padding:2px 0;"><span style="color:${k.color}">■</span> ${k.name} — ${k.time}</div>`
+      `<div style="font-size:0.8em;color:#666;padding:2px 0;text-decoration:line-through;"><span style="color:${k.color}">■</span> ${k.name} — ${k.time}</div>`
     ).join('');
 }
 
