@@ -233,10 +233,12 @@ canvas {
   <h1>Dots & Boxes</h1>
   <p class="subtitle">The classic pen & paper game — on your phone!</p>
   <input id="playerName" placeholder="Your name" maxlength="20" autocomplete="off">
-  <button onclick="showCreate()">Create Game</button>
-  <div class="or-divider">— or —</div>
+  <span id="createSection">
+    <button onclick="showCreate()">Create Game</button>
+    <div class="or-divider">— or —</div>
+  </span>
   <input id="joinCode" placeholder="Room code" maxlength="4" autocomplete="off" style="text-transform:uppercase">
-  <button class="secondary" onclick="joinRoom()">Join Game</button>
+  <button id="joinBtn" class="secondary" onclick="joinRoom()">Join Game</button>
   <p id="homeError" style="color:#e74c3c;margin-top:10px;font-size:0.9em"></p>
 </div>
 
@@ -408,6 +410,12 @@ function joinRoom() {
   const code = params.get('room');
   if (code) {
     document.getElementById('joinCode').value = code.toUpperCase();
+    document.getElementById('joinCode').readOnly = true;
+    document.getElementById('createSection').style.display = 'none';
+    // Make Join the primary button
+    const joinBtn = document.getElementById('joinBtn');
+    joinBtn.className = '';
+    joinBtn.textContent = 'Join Game';
   }
 })();
 
