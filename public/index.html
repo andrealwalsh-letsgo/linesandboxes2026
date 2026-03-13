@@ -273,6 +273,7 @@ canvas {
   </span>
   <input id="joinCode" placeholder="Room code" maxlength="4" autocomplete="off" style="text-transform:uppercase">
   <button id="joinBtn" class="secondary" onclick="joinRoom()">Join Game</button>
+  <button id="rejoinBtn" class="secondary" onclick="rejoinGame()" style="display:none;margin-top:10px;background:#2ecc71">Rejoin Game</button>
   <p id="homeError" style="color:#e74c3c;margin-top:10px;font-size:0.9em"></p>
 </div>
 
@@ -318,6 +319,7 @@ canvas {
   <div class="board-container" id="boardContainer">
     <canvas id="gameCanvas"></canvas>
   </div>
+  <button class="secondary" onclick="leaveGame()" style="margin-top:10px;max-width:200px">Leave Game</button>
 </div>
 
 <!-- GAME OVER -->
@@ -479,24 +481,42 @@ function joinRoom() {
   }
 })();
 
-// Auto-rejoin from saved session
+// Show rejoin button if there's a saved session
 (function() {
   const session = getSavedSession();
   if (session) {
-    socket.emit('rejoinRoom', { code: session.roomCode, playerId: session.playerId }, (res) => {
-      if (res.error) {
-        clearSession();
-        return; // Session expired or room gone — show normal home screen
-      }
-      roomCode = res.code;
-      myPlayerIndex = res.playerIndex;
-      myPlayerId = res.playerId;
-      isHost = res.isHost;
-      document.getElementById('lobbyCode').textContent = roomCode;
-      // gameState event will switch to correct screen
-    });
+    document.getElementById('rejoinBtn').style.display = '';
   }
 })();
+
+function rejoinGame() {
+  const session = getSavedSession();
+  if (!session) return;
+  socket.emit('rejoinRoom', { code: session.roomCode, playerId: session.playerId }, (res) => {
+    if (res.error) {
+      clearSession();
+      document.getElementById('rejoinBtn').style.display = 'none';
+      document.getElementById('homeError').textContent = 'Game no longer available';
+      return;
+    }
+    roomCode = res.code;
+    myPlayerIndex = res.playerIndex;
+    myPlayerId = res.playerId;
+    isHost = res.isHost;
+    document.getElementById('lobbyCode').textContent = roomCode;
+  });
+}
+
+function leaveGame() {
+  clearSession();
+  gameState = null;
+  roomCode = null;
+  myPlayerIndex = -1;
+  myPlayerId = null;
+  isHost = false;
+  document.getElementById('rejoinBtn').style.display = 'none';
+  showHome();
+}
 
 function copyLink() {
   const url = location.origin + '?room=' + roomCode;
