@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Dots & Boxes</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #1a1a2e;
+  color: #eee;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-x: hidden;
+}
+
+/* Screens */
+.screen { display: none; width: 100%; max-width: 600px; padding: 20px; }
+.screen.active { display: flex; flex-direction: column; align-items: center; }
+
+h1 { font-size: 2em; margin: 20px 0 10px; color: #e94560; }
+h2 { font-size: 1.3em; margin: 10px 0; color: #e94560; }
+
+.subtitle { color: #888; margin-bottom: 30px; font-size: 0.9em; }
+
+input, button, select {
+  font-size: 1.1em;
+  padding: 12px 20px;
+  border-radius: 10px;
+  border: none;
+  outline: none;
+  width: 100%;
+  max-width: 300px;
+  margin: 6px 0;
+}
+input {
+  background: #16213e;
+  color: #eee;
+  border: 2px solid #0f3460;
+  text-align: center;
+}
+input:focus { border-color: #e94560; }
+select {
+  background: #16213e;
+  color: #eee;
+  border: 2px solid #0f3460;
+  text-align: center;
+}
+
+button {
+  background: #e94560;
+  color: white;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+button:hover { background: #c73e54; }
+button:disabled { background: #555; cursor: not-allowed; }
+button.secondary {
+  background: #0f3460;
+}
+button.secondary:hover { background: #16213e; }
+
+.room-code {
+  font-size: 3em;
+  font-weight: bold;
+  letter-spacing: 0.2em;
+  color: #e94560;
+  background: #16213e;
+  padding: 15px 30px;
+  border-radius: 15px;
+  margin: 15px 0;
+  user-select: all;
+}
+
+.player-list {
+  list-style: none;
+  width: 100%;
+  max-width: 300px;
+  margin: 10px 0;
+}
+.player-list li {
+  padding: 8px 15px;
+  margin: 4px 0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #16213e;
+}
+.player-dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Game board */
+#gameScreen { max-width: 100%; padding: 10px; }
+
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 5px 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.turn-indicator {
+  font-size: 1.1em;
+  font-weight: bold;
+  padding: 8px 16px;
+  border-radius: 10px;
+  background: #16213e;
+  text-align: center;
+  flex: 1;
+}
+.turn-indicator.my-turn {
+  background: #e94560;
+  animation: pulse 1s ease-in-out infinite alternate;
+}
+@keyframes pulse {
+  from { opacity: 0.8; }
+  to { opacity: 1; }
+}
+
+.scoreboard {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 8px 0;
+  width: 100%;
+}
+.score-chip {
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 0.85em;
+  font-weight: bold;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.score-chip.active {
+  outline: 3px solid white;
+}
+
+.board-container {
+  overflow: auto;
+  max-width: 100%;
+  max-height: calc(100vh - 200px);
+  -webkit-overflow-scrolling: touch;
+  margin: 5px 0;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+}
+
+/* Game over overlay */
+.game-over {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 100;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.game-over.active { display: flex; }
+.game-over h1 { font-size: 2.5em; }
+.game-over .final-scores {
+  margin: 20px 0;
+  font-size: 1.2em;
+  text-align: center;
+}
+.game-over .final-scores div {
+  margin: 8px 0;
+}
+
+.or-divider { color: #555; margin: 10px 0; }
+
+/* Size presets */
+.size-presets {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 10px 0;
+}
+.size-presets button {
+  width: auto;
+  padding: 8px 16px;
+  font-size: 0.9em;
+}
+.size-presets button.active {
+  outline: 3px solid white;
+}
+
+.size-inputs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+.size-inputs input {
+  width: 80px;
+}
+.size-inputs span { color: #888; }
+
+.share-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  max-width: 300px;
+}
+.share-row button { flex: 1; }
+</style>
+</head>
+<body>
+
+<!-- HOME SCREEN -->
+<div id="homeScreen" class="screen active">
+  <h1>Dots & Boxes</h1>
+  <p class="subtitle">The classic pen & paper game — on your phone!</p>
+  <input id="playerName" placeholder="Your name" maxlength="20" autocomplete="off">
+  <button onclick="showCreate()">Create Game</button>
+  <div class="or-divider">— or —</div>
+  <input id="joinCode" placeholder="Room code" maxlength="4" autocomplete="off" style="text-transform:uppercase">
+  <button class="secondary" onclick="joinRoom()">Join Game</button>
+  <p id="homeError" style="color:#e74c3c;margin-top:10px;font-size:0.9em"></p>
+</div>
+
+<!-- CREATE SCREEN -->
+<div id="createScreen" class="screen">
+  <h2>Grid Size</h2>
+  <div class="size-presets">
+    <button onclick="setSize(3,3)" class="active" data-size="3x3">3×3</button>
+    <button onclick="setSize(5,5)" data-size="5x5">5×5</button>
+    <button onclick="setSize(7,7)" data-size="7x7">7×7</button>
+    <button onclick="setSize(10,10)" data-size="10x10">10×10</button>
+  </div>
+  <div class="size-inputs">
+    <input id="gridW" type="number" min="2" max="1000" value="3">
+    <span>×</span>
+    <input id="gridH" type="number" min="2" max="1000" value="3">
+    <span>boxes</span>
+  </div>
+  <button onclick="createRoom()" style="margin-top:15px">Create Room</button>
+  <button class="secondary" onclick="showHome()">Back</button>
+</div>
+
+<!-- LOBBY SCREEN -->
+<div id="lobbyScreen" class="screen">
+  <h2>Room Code</h2>
+  <div class="room-code" id="lobbyCode"></div>
+  <div class="share-row">
+    <button onclick="copyLink()">Copy Link</button>
+    <button class="secondary" onclick="shareLink()">Share</button>
+  </div>
+  <p style="color:#888;font-size:0.85em;margin:5px 0;text-align:center">Share this code or link with friends to join!</p>
+  <h2>Players</h2>
+  <ul class="player-list" id="lobbyPlayers"></ul>
+  <button id="startBtn" onclick="startGame()" disabled>Waiting for players...</button>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="gameScreen" class="screen">
+  <div class="game-header">
+    <div class="turn-indicator" id="turnIndicator">Loading...</div>
+  </div>
+  <div class="scoreboard" id="scoreboard"></div>
+  <div class="board-container" id="boardContainer">
+    <canvas id="gameCanvas"></canvas>
+  </div>
+</div>
+
+<!-- GAME OVER -->
+<div class="game-over" id="gameOver">
+  <h1>Game Over!</h1>
+  <div class="final-scores" id="finalScores"></div>
+  <button onclick="location.reload()" style="max-width:200px">Play Again</button>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+
+let myPlayerIndex = -1;
+let gameState = null;
+let roomCode = null;
+let isHost = false;
+
+// --- Sparse state tracking for large grids ---
+let sparseHLines = new Map(); // "r,c" -> playerIndex
+let sparseVLines = new Map();
+let sparseBoxes = new Map();
+
+// --- Sound ---
+function playTurnSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.setValueAtTime(587, ctx.currentTime); // D5
+    osc.frequency.setValueAtTime(784, ctx.currentTime + 0.1); // G5
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.3);
+  } catch(e) {}
+}
+
+function playScoreSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(523, ctx.currentTime);
+    osc.frequency.setValueAtTime(659, ctx.currentTime + 0.1);
+    osc.frequency.setValueAtTime(784, ctx.currentTime + 0.2);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.4);
+  } catch(e) {}
+}
+
+// --- Screens ---
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function showHome() { showScreen('homeScreen'); }
+function showCreate() {
+  if (!getName()) return;
+  showScreen('createScreen');
+}
+function getName() {
+  const n = document.getElementById('playerName').value.trim();
+  if (!n) { document.getElementById('homeError').textContent = 'Enter your name!'; return null; }
+  return n;
+}
+
+// --- Size presets ---
+function setSize(w, h) {
+  document.getElementById('gridW').value = w;
+  document.getElementById('gridH').value = h;
+  document.querySelectorAll('.size-presets button').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`.size-presets button[data-size="${w}x${h}"]`);
+  if (btn) btn.classList.add('active');
+}
+document.getElementById('gridW').addEventListener('input', () => {
+  document.querySelectorAll('.size-presets button').forEach(b => b.classList.remove('active'));
+});
+document.getElementById('gridH').addEventListener('input', () => {
+  document.querySelectorAll('.size-presets button').forEach(b => b.classList.remove('active'));
+});
+
+// --- Create / Join ---
+function createRoom() {
+  const name = getName();
+  if (!name) { showScreen('homeScreen'); return; }
+  const w = parseInt(document.getElementById('gridW').value) || 3;
+  const h = parseInt(document.getElementById('gridH').value) || 3;
+  socket.emit('createRoom', { name, width: w, height: h }, (res) => {
+    if (res.error) { alert(res.error); return; }
+    roomCode = res.code;
+    myPlayerIndex = res.playerIndex;
+    isHost = true;
+    document.getElementById('lobbyCode').textContent = roomCode;
+    showScreen('lobbyScreen');
+  });
+}
+
+function joinRoom() {
+  const name = getName();
+  if (!name) return;
+  const code = document.getElementById('joinCode').value.trim().toUpperCase();
+  if (!code) { document.getElementById('homeError').textContent = 'Enter a room code!'; return; }
+  socket.emit('joinRoom', { code, name }, (res) => {
+    if (res.error) { document.getElementById('homeError').textContent = res.error; return; }
+    roomCode = res.code;
+    myPlayerIndex = res.playerIndex;
+    isHost = false;
+    document.getElementById('lobbyCode').textContent = roomCode;
+    showScreen('lobbyScreen');
+  });
+}
+
+// Auto-join from URL
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('room');
+  if (code) {
+    document.getElementById('joinCode').value = code.toUpperCase();
+  }
+})();
+
+function copyLink() {
+  const url = location.origin + '?room=' + roomCode;
+  navigator.clipboard.writeText(url).then(() => {
+    event.target.textContent = 'Copied!';
+    setTimeout(() => event.target.textContent = 'Copy Link', 2000);
+  }).catch(() => {
+    prompt('Copy this link:', url);
+  });
+}
+
+function shareLink() {
+  const url = location.origin + '?room=' + roomCode;
+  if (navigator.share) {
+    navigator.share({ title: 'Dots & Boxes', text: `Join my game! Room code: ${roomCode}`, url });
+  } else {
+    copyLink();
+  }
+}
+
+function startGame() {
+  socket.emit('startGame');
+}
+
+// --- Game State ---
+socket.on('gameState', (state) => {
+  gameState = state;
+  // Rebuild sparse maps
+  sparseHLines.clear();
+  sparseVLines.clear();
+  sparseBoxes.clear();
+  if (state.filledHLines) {
+    state.filledHLines.forEach(([r,c,p]) => sparseHLines.set(`${r},${c}`, p));
+    state.filledVLines.forEach(([r,c,p]) => sparseVLines.set(`${r},${c}`, p));
+    state.filledBoxes.forEach(([r,c,p]) => sparseBoxes.set(`${r},${c}`, p));
+  }
+  updateLobby();
+  if (state.started) {
+    showScreen('gameScreen');
+    initBoard();
+    drawBoard();
+    updateUI();
+  }
+});
+
+socket.on('move', (move) => {
+  if (!gameState) return;
+  const { type, row, col, playerIndex, currentPlayerIndex, players, finished, boxesCompleted } = move;
+
+  // Update sparse maps
+  if (type === 'h') sparseHLines.set(`${row},${col}`, playerIndex);
+  else sparseVLines.set(`${row},${col}`, playerIndex);
+
+  // Also update dense arrays if they exist
+  if (gameState.hLines && type === 'h') gameState.hLines[row][col] = playerIndex;
+  if (gameState.vLines && type === 'v') gameState.vLines[row][col] = playerIndex;
+
+  gameState.currentPlayerIndex = currentPlayerIndex;
+  gameState.players = players;
+  gameState.finished = finished;
+
+  // Recheck boxes for dense mode
+  if (gameState.boxes && boxesCompleted > 0) {
+    recheckBoxes();
+  }
+
+  // Sound effects
+  if (currentPlayerIndex === myPlayerIndex && playerIndex !== myPlayerIndex) {
+    playTurnSound();
+  }
+  if (boxesCompleted > 0 && playerIndex === myPlayerIndex) {
+    playScoreSound();
+  }
+
+  drawBoard();
+  updateUI();
+
+  if (finished) showGameOver();
+});
+
+function recheckBoxes() {
+  if (!gameState.boxes) return;
+  const w = gameState.width, h = gameState.height;
+  for (let r = 0; r < h; r++) {
+    for (let c = 0; c < w; c++) {
+      if (gameState.boxes[r][c] === null) {
+        const top = gameState.hLines[r][c];
+        const bot = gameState.hLines[r+1][c];
+        const lft = gameState.vLines[r][c];
+        const rgt = gameState.vLines[r][c+1];
+        if (top !== null && bot !== null && lft !== null && rgt !== null) {
+          // Find who completed it from the players with max score change
+          // Actually we just mark it - server is authoritative
+          gameState.boxes[r][c] = gameState.currentPlayerIndex;
+        }
+      }
+    }
+  }
+}
+
+function updateLobby() {
+  const list = document.getElementById('lobbyPlayers');
+  list.innerHTML = '';
+  gameState.players.forEach(p => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="player-dot" style="background:${p.color}"></span>${p.name}`;
+    list.appendChild(li);
+  });
+  const btn = document.getElementById('startBtn');
+  if (isHost) {
+    btn.disabled = gameState.players.length < 2;
+    btn.textContent = gameState.players.length < 2 ? 'Waiting for players...' : 'Start Game!';
+  } else {
+    btn.disabled = true;
+    btn.textContent = 'Waiting for host to start...';
+  }
+}
+
+function updateUI() {
+  if (!gameState) return;
+  const cp = gameState.players[gameState.currentPlayerIndex];
+  const ti = document.getElementById('turnIndicator');
+  const isMyTurn = gameState.currentPlayerIndex === myPlayerIndex;
+  ti.textContent = isMyTurn ? "Your turn!" : `${cp.name}'s turn`;
+  ti.className = 'turn-indicator' + (isMyTurn ? ' my-turn' : '');
+  ti.style.borderLeft = `4px solid ${cp.color}`;
+
+  const sb = document.getElementById('scoreboard');
+  sb.innerHTML = '';
+  gameState.players.forEach((p, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'score-chip' + (i === gameState.currentPlayerIndex ? ' active' : '');
+    chip.style.background = p.color;
+    chip.innerHTML = `${p.name}: ${p.score}`;
+    sb.appendChild(chip);
+  });
+
+  // Update page title for tab notification
+  if (isMyTurn) {
+    document.title = '🔴 YOUR TURN — Dots & Boxes';
+  } else {
+    document.title = 'Dots & Boxes';
+  }
+}
+
+function showGameOver() {
+  const sorted = [...gameState.players].sort((a,b) => b.score - a.score);
+  const fs = document.getElementById('finalScores');
+  fs.innerHTML = `<div style="font-size:1.5em;margin-bottom:15px">🏆 ${sorted[0].name} wins with ${sorted[0].score} boxes!</div>`;
+  sorted.forEach((p, i) => {
+    fs.innerHTML += `<div><span style="color:${p.color}">■</span> ${i+1}. ${p.name}: ${p.score}</div>`;
+  });
+  document.getElementById('gameOver').classList.add('active');
+}
+
+// --- Canvas Board ---
+const DOT_R = 6;
+const LINE_W = 4;
+const HOVER_W = 8;
+let cellSize = 40;
+let canvasW, canvasH;
+let hoverLine = null; // { type, row, col }
+
+function initBoard() {
+  const w = gameState.width;
+  const h = gameState.height;
+  const container = document.getElementById('boardContainer');
+  const maxW = Math.min(window.innerWidth - 20, 600);
+  const maxH = window.innerHeight - 220;
+  cellSize = Math.max(12, Math.min(60, Math.floor(Math.min(maxW / (w + 1), maxH / (h + 1)))));
+  const pad = cellSize;
+  canvasW = w * cellSize + pad * 2;
+  canvasH = h * cellSize + pad * 2;
+
+  const canvas = document.getElementById('gameCanvas');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvasW * dpr;
+  canvas.height = canvasH * dpr;
+  canvas.style.width = canvasW + 'px';
+  canvas.style.height = canvasH + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+}
+
+function getHLine(r, c) {
+  if (gameState.hLines) return gameState.hLines[r][c];
+  return sparseHLines.get(`${r},${c}`) ?? null;
+}
+function getVLine(r, c) {
+  if (gameState.vLines) return gameState.vLines[r][c];
+  return sparseVLines.get(`${r},${c}`) ?? null;
+}
+function getBox(r, c) {
+  if (gameState.boxes) return gameState.boxes[r][c];
+  return sparseBoxes.get(`${r},${c}`) ?? null;
+}
+
+function drawBoard() {
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  ctx.save();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, canvasW, canvasH);
+
+  const w = gameState.width;
+  const h = gameState.height;
+  const pad = cellSize;
+
+  // Draw filled boxes
+  for (let r = 0; r < h; r++) {
+    for (let c = 0; c < w; c++) {
+      const owner = getBox(r, c);
+      if (owner !== null) {
+        ctx.fillStyle = gameState.players[owner].color + '40';
+        ctx.fillRect(pad + c * cellSize, pad + r * cellSize, cellSize, cellSize);
+        // Draw initial
+        ctx.fillStyle = gameState.players[owner].color;
+        ctx.font = `bold ${Math.max(10, cellSize * 0.4)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(
+          gameState.players[owner].name[0].toUpperCase(),
+          pad + c * cellSize + cellSize/2,
+          pad + r * cellSize + cellSize/2
+        );
+      }
+    }
+  }
+
+  // Draw horizontal lines
+  for (let r = 0; r <= h; r++) {
+    for (let c = 0; c < w; c++) {
+      const owner = getHLine(r, c);
+      const x1 = pad + c * cellSize;
+      const y = pad + r * cellSize;
+      const x2 = x1 + cellSize;
+      if (owner !== null) {
+        ctx.strokeStyle = gameState.players[owner].color;
+        ctx.lineWidth = LINE_W;
+        ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
+      } else if (hoverLine && hoverLine.type === 'h' && hoverLine.row === r && hoverLine.col === c) {
+        ctx.strokeStyle = gameState.players[myPlayerIndex].color + '60';
+        ctx.lineWidth = HOVER_W;
+        ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
+      }
+    }
+  }
+
+  // Draw vertical lines
+  for (let r = 0; r < h; r++) {
+    for (let c = 0; c <= w; c++) {
+      const owner = getVLine(r, c);
+      const x = pad + c * cellSize;
+      const y1 = pad + r * cellSize;
+      const y2 = y1 + cellSize;
+      if (owner !== null) {
+        ctx.strokeStyle = gameState.players[owner].color;
+        ctx.lineWidth = LINE_W;
+        ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, y2); ctx.stroke();
+      } else if (hoverLine && hoverLine.type === 'v' && hoverLine.row === r && hoverLine.col === c) {
+        ctx.strokeStyle = gameState.players[myPlayerIndex].color + '60';
+        ctx.lineWidth = HOVER_W;
+        ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, y2); ctx.stroke();
+      }
+    }
+  }
+
+  // Draw dots
+  ctx.fillStyle = '#eee';
+  for (let r = 0; r <= h; r++) {
+    for (let c = 0; c <= w; c++) {
+      ctx.beginPath();
+      ctx.arc(pad + c * cellSize, pad + r * cellSize, DOT_R, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  ctx.restore();
+}
+
+// --- Input handling ---
+function getLineFromPos(px, py) {
+  const w = gameState.width;
+  const h = gameState.height;
+  const pad = cellSize;
+
+  // Check horizontal lines
+  for (let r = 0; r <= h; r++) {
+    for (let c = 0; c < w; c++) {
+      const x1 = pad + c * cellSize;
+      const y = pad + r * cellSize;
+      const mx = (x1 + x1 + cellSize) / 2;
+      const dist = Math.sqrt((px - mx) ** 2 + (py - y) ** 2);
+      if (dist < cellSize * 0.45) {
+        return { type: 'h', row: r, col: c };
+      }
+    }
+  }
+  // Check vertical lines
+  for (let r = 0; r < h; r++) {
+    for (let c = 0; c <= w; c++) {
+      const x = pad + c * cellSize;
+      const y1 = pad + r * cellSize;
+      const my = (y1 + y1 + cellSize) / 2;
+      const dist = Math.sqrt((px - x) ** 2 + (py - my) ** 2);
+      if (dist < cellSize * 0.45) {
+        return { type: 'v', row: r, col: c };
+      }
+    }
+  }
+  return null;
+}
+
+// Optimized line detection for large grids
+function getLineFromPosLarge(px, py) {
+  const w = gameState.width;
+  const h = gameState.height;
+  const pad = cellSize;
+
+  // Determine approximate grid position
+  const gx = (px - pad) / cellSize;
+  const gy = (py - pad) / cellSize;
+
+  // Check nearby horizontal lines (within 1 cell)
+  const rMin = Math.max(0, Math.floor(gy) - 1);
+  const rMax = Math.min(h, Math.ceil(gy) + 1);
+  const cMin = Math.max(0, Math.floor(gx) - 1);
+  const cMax = Math.min(w - 1, Math.ceil(gx) + 1);
+
+  let best = null;
+  let bestDist = cellSize * 0.45;
+
+  for (let r = rMin; r <= rMax; r++) {
+    for (let c = cMin; c <= cMax; c++) {
+      const x1 = pad + c * cellSize;
+      const y = pad + r * cellSize;
+      const mx = x1 + cellSize / 2;
+      const dist = Math.sqrt((px - mx) ** 2 + (py - y) ** 2);
+      if (dist < bestDist) {
+        best = { type: 'h', row: r, col: c };
+        bestDist = dist;
+      }
+    }
+  }
+
+  // Check nearby vertical lines
+  const vrMin = Math.max(0, Math.floor(gy) - 1);
+  const vrMax = Math.min(h - 1, Math.ceil(gy) + 1);
+  const vcMin = Math.max(0, Math.floor(gx) - 1);
+  const vcMax = Math.min(w, Math.ceil(gx) + 1);
+
+  for (let r = vrMin; r <= vrMax; r++) {
+    for (let c = vcMin; c <= vcMax; c++) {
+      const x = pad + c * cellSize;
+      const y1 = pad + r * cellSize;
+      const my = y1 + cellSize / 2;
+      const dist = Math.sqrt((px - x) ** 2 + (py - my) ** 2);
+      if (dist < bestDist) {
+        best = { type: 'v', row: r, col: c };
+        bestDist = dist;
+      }
+    }
+  }
+
+  return best;
+}
+
+function findLine(px, py) {
+  if (gameState.width * gameState.height > 400) return getLineFromPosLarge(px, py);
+  return getLineFromPos(px, py);
+}
+
+function isLineFilled(line) {
+  if (!line) return true;
+  if (line.type === 'h') return getHLine(line.row, line.col) !== null;
+  return getVLine(line.row, line.col) !== null;
+}
+
+const canvas = document.getElementById('gameCanvas');
+
+function getCanvasPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches ? e.touches[0] : e;
+  return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+}
+
+canvas.addEventListener('mousemove', (e) => {
+  if (!gameState || gameState.currentPlayerIndex !== myPlayerIndex) {
+    hoverLine = null; drawBoard(); return;
+  }
+  const pos = getCanvasPos(e);
+  const line = findLine(pos.x, pos.y);
+  if (line && !isLineFilled(line)) {
+    hoverLine = line;
+    canvas.style.cursor = 'pointer';
+  } else {
+    hoverLine = null;
+    canvas.style.cursor = 'default';
+  }
+  drawBoard();
+});
+
+canvas.addEventListener('mouseleave', () => {
+  hoverLine = null; drawBoard();
+});
+
+canvas.addEventListener('click', (e) => {
+  if (!gameState || gameState.currentPlayerIndex !== myPlayerIndex) return;
+  const pos = getCanvasPos(e);
+  const line = findLine(pos.x, pos.y);
+  if (line && !isLineFilled(line)) {
+    socket.emit('placeLine', line);
+    hoverLine = null;
+  }
+});
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (!gameState || gameState.currentPlayerIndex !== myPlayerIndex) return;
+  const pos = getCanvasPos(e);
+  const line = findLine(pos.x, pos.y);
+  if (line && !isLineFilled(line)) {
+    hoverLine = line;
+    drawBoard();
+  }
+});
+
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  if (hoverLine) {
+    socket.emit('placeLine', hoverLine);
+    hoverLine = null;
+    drawBoard();
+  }
+});
+
+// Resize handling
+window.addEventListener('resize', () => {
+  if (gameState && gameState.started) {
+    initBoard();
+    drawBoard();
+  }
+});
+</script>
+</body>
+</html>
