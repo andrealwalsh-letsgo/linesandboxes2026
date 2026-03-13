@@ -318,7 +318,6 @@ canvas {
   <div class="board-container" id="boardContainer">
     <canvas id="gameCanvas"></canvas>
   </div>
-  <div id="kickedListContainer"></div>
 </div>
 
 <!-- GAME OVER -->
@@ -531,19 +530,10 @@ function kickPlayer(playerIndex) {
   socket.emit('kickPlayer', { playerIndex }, (res) => {
     if (res && res.ok) {
       kickedList.push({ name: player.name, color: player.color, time: new Date().toLocaleTimeString() });
-      updateKickedList();
     }
   });
 }
 
-function updateKickedList() {
-  const el = document.getElementById('kickedListContainer');
-  if (kickedList.length === 0) { el.innerHTML = ''; return; }
-  el.innerHTML = '<div style="font-size:0.8em;color:#888;margin-bottom:4px;">Removed players:</div>' +
-    kickedList.map(k =>
-      `<div style="font-size:0.8em;color:#666;padding:2px 0;text-decoration:line-through;"><span style="color:${k.color}">■</span> ${k.name} — ${k.time}</div>`
-    ).join('');
-}
 
 socket.on('kicked', ({ message }) => {
   clearSession();
@@ -659,13 +649,22 @@ function updateUI() {
 
   const sb = document.getElementById('scoreboard');
   sb.innerHTML = '';
-  gameState.players.forEach((p, i) => {
-    if (p.kicked) return;
+  // Active players first, then kicked players at the end
+  const active = [], kicked = [];
+  gameState.players.forEach((p, i) => (p.kicked ? kicked : active).push({ ...p, idx: i }));
+  [...active, ...kicked].forEach(({ idx: i, kicked: isKicked }) => {
+    const p = gameState.players[i];
     const chip = document.createElement('div');
-    chip.className = 'score-chip' + (i === gameState.currentPlayerIndex ? ' active' : '');
+    chip.className = 'score-chip' + (i === gameState.currentPlayerIndex && !isKicked ? ' active' : '') + (isKicked ? ' kicked' : '');
     chip.style.background = p.color;
-    const kickHtml = (isHost && i !== 0 && gameState.started) ? `<button class="kick-btn" onclick="kickPlayer(${i})" title="Remove">✕</button>` : '';
-    chip.innerHTML = `${p.name}: ${p.score}${kickHtml}`;
+    if (isKicked) {
+      const kickTime = kickedList.find(k => k.name === p.name);
+      chip.title = kickTime ? `Removed at ${kickTime.time}` : 'Removed';
+      chip.innerHTML = `${p.name}: ${p.score}`;
+    } else {
+      const kickHtml = (isHost && i !== 0 && gameState.started) ? `<button class="kick-btn" onclick="kickPlayer(${i})" title="Remove">✕</button>` : '';
+      chip.innerHTML = `${p.name}: ${p.score}${kickHtml}`;
+    }
     sb.appendChild(chip);
   });
 
